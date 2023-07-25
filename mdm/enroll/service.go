@@ -33,10 +33,14 @@ const (
 
 	scepPayloadDescription = "Configures SCEP"
 	scepPayloadDisplayName = "SCEP"
+
+	MacOS string = "macOS"
+	IOS   string = "iOS"
 )
 
 type Service interface {
 	Enroll(ctx context.Context) (profile.Mobileconfig, error)
+	EnrollFromDEP(ctx context.Context, dep DEPEnrollmentRequest) (profile.Mobileconfig, error)
 	OTAEnroll(ctx context.Context) (profile.Mobileconfig, error)
 	OTAPhase2(ctx context.Context) (profile.Mobileconfig, error)
 	OTAPhase3(ctx context.Context) (profile.Mobileconfig, error)
@@ -176,6 +180,30 @@ func (svc *service) findOrMakeMobileconfig(ctx context.Context, id string, f int
 }
 
 func (svc *service) Enroll(ctx context.Context) (profile.Mobileconfig, error) {
+	return svc.findOrMakeMobileconfig(ctx, EnrollmentProfileId, svc.MakeEnrollmentProfile)
+}
+
+type DEPEnrollmentRequest struct {
+	OSType                    string // service.MacOS or service.IOS
+	ClientOSVersion           string // "14.0"
+	ClientOSBuild             string // "23A5286i"
+	ClientOSSupplementalBuild string // "23A5286i"
+}
+
+func (svc *service) EnrollFromDEP(ctx context.Context, req DEPEnrollmentRequest) (profile.Mobileconfig, error) {
+	// TODO NEEDS WORK
+	if req.OSType == MacOS {
+		if req.ClientOSSupplementalBuild == "23A5286i" {
+			var updatePayload OSTooOldError
+			updatePayload.Code = "com.apple.softwareupdate.required"
+			updatePayload.Description = "description"
+			updatePayload.Message = "message"
+			updatePayload.Details.OSVersion = "14.0"
+			updatePayload.Details.BuildVersion = "23A5301g"
+
+			return nil, &updatePayload
+		}
+	}
 	return svc.findOrMakeMobileconfig(ctx, EnrollmentProfileId, svc.MakeEnrollmentProfile)
 }
 

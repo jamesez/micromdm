@@ -2,6 +2,7 @@ package enroll
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -22,14 +23,31 @@ type HTTPHandlers struct {
 	OTAPhase2Phase3Handler http.Handler
 }
 
+type OSTooOldError struct {
+	Code        string `json:"code" plist:"code"`
+	Description string `json:"description,omitempty" plist:"description,omitempty"`
+	Message     string `json:"message,omitempty" plist:"message,omitempty"`
+	Details     struct {
+		OSVersion    string `json:"OSVersion" plist:"OSVersion"`
+		BuildVersion string `json:"BuildVersion,omitempty" plist:"BuildVersion"`
+	} `json:"details" plist:"details"`
+}
+
+// error conformance
+func (e *OSTooOldError) Error() string {
+	return "this OS is too old"
+}
+
 func MakeHTTPHandlers(ctx context.Context, endpoints Endpoints, v *crypto.PKCS7Verifier, opts ...httptransport.ServerOption) HTTPHandlers {
 	ver := verifier{PKCS7Verifier: v}
+	enrollmentOpts := append(opts, httptransport.ServerErrorEncoder(encodeUpdateRequiredError))
+
 	h := HTTPHandlers{
 		EnrollHandler: httptransport.NewServer(
 			endpoints.GetEnrollEndpoint,
 			ver.decodeMDMEnrollRequest,
 			encodeMobileconfigResponse,
-			opts...,
+			enrollmentOpts...,
 		),
 		OTAEnrollHandler: httptransport.NewServer(
 			endpoints.OTAEnrollEndpoint,
@@ -88,6 +106,23 @@ func (v verifier) decodeMDMEnrollRequest(_ context.Context, r *http.Request) (in
 		return request, nil
 	default:
 		return nil, errors.New("unknown enrollment method")
+	}
+}
+
+func encodeUpdateRequiredError(ctx context.Context, err error, w http.ResponseWriter) {
+	switch err.(type) {
+	case *OSTooOldError:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		resp, _ := json.Marshal(err)
+		w.Write(resp)
+
+	default:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": err.Error(),
+		})
 	}
 }
 

@@ -20,13 +20,17 @@ type Endpoints struct {
 }
 
 type depEnrollmentRequest struct {
-	Language string `plist:"LANGUAGE"`
-	Product  string `plist:"PRODUCT"`
-	Serial   string `plist:"SERIAL"`
-	UDID     string `plist:"UDID"`
-	Version  string `plist:"VERSION"`
-	IMEI     string `plist:"IMEI,omitempty"`
-	MEID     string `plist:"MEID,omitempty"`
+	Language                    string `plist:"LANGUAGE"`
+	Product                     string `plist:"PRODUCT"`
+	Serial                      string `plist:"SERIAL"`
+	UDID                        string `plist:"UDID"`
+	Version                     string `plist:"VERSION"`
+	IMEI                        string `plist:"IMEI,omitempty"`
+	MEID                        string `plist:"MEID,omitempty"`
+	MDMCanRequestSoftwareUpdate bool   `plist:"MDM_CAN_REQUEST_SOFTWARE_UPDATE,omitempty"`
+	OSVersion                   string `plist:"OS_VERSION,omitempty"`
+	OSBuild                     string `plist:"VERSION,omitempty"`
+	SupplementalBuildVersion    string `plist:"SUPPLEMENTAL_BUILD_VERSION,omitempty"`
 }
 
 type otaEnrollmentRequest struct {
@@ -74,9 +78,20 @@ func MakeGetEnrollEndpoint(s Service) endpoint.Endpoint {
 			mc, err := s.Enroll(ctx)
 			return mobileconfigResponse{mc, err}, nil
 		case depEnrollmentRequest:
+			// TODO REMOVE DEBUG
 			fmt.Printf("got DEP enrollment request from %s\n", req.Serial)
-			mc, err := s.Enroll(ctx)
-			return mobileconfigResponse{mc, err}, nil
+			fmt.Printf("%+v", req)
+
+			// TODO: convert PRODUCT (MacBookAir, etc) to OSType
+			depReq := DEPEnrollmentRequest{
+				OSType:                    MacOS,
+				ClientOSVersion:           req.OSVersion,
+				ClientOSBuild:             req.OSBuild,
+				ClientOSSupplementalBuild: req.SupplementalBuildVersion,
+			}
+			mc, err := s.EnrollFromDEP(ctx, depReq)
+			// TODO this double err response is Not Ideal
+			return mobileconfigResponse{mc, err}, err
 		default:
 			return nil, errors.New("unknown enrollment type")
 		}
