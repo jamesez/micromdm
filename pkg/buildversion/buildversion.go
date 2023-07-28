@@ -13,12 +13,12 @@ func (myBV BuildVersion) LessThan(theirBV BuildVersion) (bool, error) {
 
 	my, err := myBV.split()
 	if err != nil {
-		panic(err)
+		return false, fmt.Errorf("could not split %s: %w", string(myBV), err)
 	}
 
 	their, err := theirBV.split()
 	if err != nil {
-		return false, fmt.Errorf("could not split %s: %w", string(myBV), err)
+		return false, fmt.Errorf("could not split %s: %w", string(theirBV), err)
 	}
 
 	if my.Major < their.Major {
